@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: kivon-randevu-api
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/index.js
+    plan: free
+    envVars:
+      - key: SUPABASE_URL
+        value: https://remiwuslxbqlzuevecic.supabase.co
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        value: kivon_verify_2024
+      - key: JWT_SECRET
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_BUSINESS_ID
+        sync: false
+      - key: APP_BASE_URL
+        value: https://kivontr.com
