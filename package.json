@@ -1,0 +1,11 @@
+{
+  "name": "kivon-randevu",
+  "version": "1.0.0",
+  "private": true,
+  "description": "KIVON Randevu - WhatsApp AI Appointment System",
+  "scripts": {
+    "backend": "cd backend && node src/index.js",
+    "backend:dev": "cd backend && node --watch src/index.js",
+    "test": "echo \"No tests yet\""
+  }
+}

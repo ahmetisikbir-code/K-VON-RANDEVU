@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giris Yap — KIVON Randevu</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+    }
+  }
+  </script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-canvas" id="authCanvas"></div>
+    <div class="auth-card glass">
+      <h1>Giris Yap</h1>
+      <p>KIVON hesabiniza giris yapin</p>
+      <form id="loginForm" novalidate>
+        <div class="form-group">
+          <label>E-posta</label>
+          <input type="email" class="form-input" id="email" placeholder="ornek@email.com" required autocomplete="email">
+          <div class="form-error" id="emailError">Gecerli bir e-posta adresi girin</div>
+        </div>
+        <div class="form-group">
+          <label>Sifre</label>
+          <input type="password" class="form-input" id="password" placeholder="Sifreniz" required autocomplete="current-password">
+          <div class="form-error" id="passwordError">Sifre gerekli</div>
+        </div>
+        <button type="submit" class="btn btn-primary form-submit" id="loginBtn">Giris Yap</button>
+      </form>
+      <div class="form-footer">
+        Hesabin yok mu? <a href="register.html">Kayit Ol</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { initDNAScene } from './js/dna-scene.js';
+    import { login, isAuthenticated } from './js/auth.js';
+    import { redirectIfAuthenticated } from './js/auth.js';
+
+    redirectIfAuthenticated();
+
+    initDNAScene('authCanvas', {
+      cameraZ: 8,
+      tubeRadius: 0.12,
+      starCount: 2000,
+    });
+
+    const form = document.getElementById('loginForm');
+    const email = document.getElementById('email');
+    const password = document.getElementById('password');
+    const emailErr = document.getElementById('emailError');
+    const passwordErr = document.getElementById('passwordError');
+    const loginBtn = document.getElementById('loginBtn');
+
+    function showError(input, errEl) {
+      input.classList.add('error');
+      errEl.classList.add('visible');
+    }
+
+    function clearError(input, errEl) {
+      input.classList.remove('error');
+      errEl.classList.remove('visible');
+    }
+
+    email.addEventListener('input', () => clearError(email, emailErr));
+    password.addEventListener('input', () => clearError(password, passwordErr));
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      let valid = true;
+
+      if (!email.value || !email.value.includes('@')) {
+        showError(email, emailErr);
+        valid = false;
+      } else {
+        clearError(email, emailErr);
+      }
+
+      if (!password.value) {
+        showError(password, passwordErr);
+        valid = false;
+      } else {
+        clearError(password, passwordErr);
+      }
+
+      if (!valid) return;
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Giris yapiliyor...';
+
+      try {
+        await login(email.value, password.value);
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        const errDiv = document.createElement('div');
+        errDiv.style.cssText = 'color:var(--danger);font-size:14px;text-align:center;margin-bottom:16px;padding:12px;background:rgba(239,68,68,0.1);border-radius:8px;border:1px solid rgba(239,68,68,0.2)';
+        errDiv.textContent = err.message;
+        form.prepend(errDiv);
+        setTimeout(() => errDiv.remove(), 4000);
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Giris Yap';
+      }
+    });
+  </script>
+</body>
+</html>
