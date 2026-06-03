@@ -44,8 +44,8 @@
   <script type="module">
     import * as THREE from 'three';
     import { initDNAScene } from './js/dna-scene.js';
-    import { login, isAuthenticated } from './js/auth.js';
-    import { redirectIfAuthenticated } from './js/auth.js';
+    import { login } from './js/api.js';
+    import { isAuthenticated, redirectIfAuthenticated } from './js/auth.js';
 
     redirectIfAuthenticated();
 
