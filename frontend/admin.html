@@ -52,6 +52,7 @@
           <span id="availabilityStatus" style="font-size:14px;color:var(--success);font-weight:500">Musait</span>
         </div>
         <button class="btn btn-primary" id="generateSlotsBtn">Slot Olustur</button>
+        <button class="btn btn-outline" id="addAppointmentBtn">Yeni Randevu Ekle</button>
       </div>
 
       <div id="appointmentsContainer"></div>
@@ -76,9 +77,41 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="addAppointmentModal">
+    <div class="modal glass" style="position:relative">
+      <button class="modal-close">&times;</button>
+      <h2>Yeni Randevu Ekle</h2>
+      <form id="addAppointmentForm">
+        <div class="form-group">
+          <label>Hasta Adi *</label>
+          <input type="text" class="form-input" id="patientName" required placeholder="Ad Soyad">
+        </div>
+        <div class="form-group">
+          <label>Hasta Telefon *</label>
+          <input type="tel" class="form-input" id="patientPhone" required placeholder="05XX XXX XX XX">
+        </div>
+        <div class="form-group">
+          <label>Tarih *</label>
+          <input type="date" class="form-input" id="appointmentDate" required>
+        </div>
+        <div class="form-group">
+          <label>Saat *</label>
+          <div id="timeSlotContainer" style="margin-top:8px">
+            <p style="color:var(--text-muted);font-size:14px">Once tarih secin</p>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Not (opsiyonel)</label>
+          <textarea class="form-input" id="appointmentNotes" rows="2" placeholder="Istege bagli not"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary form-submit">Randevu Olustur</button>
+      </form>
+    </div>
+  </div>
+
   <script type="module">
     import { redirectIfNotAuthenticated, getUser, clearToken } from './js/auth.js';
-    import { logout, getAppointments, cancelAppointment, generateSlots } from './js/api.js';
+    import { logout, getAppointments, cancelAppointment, generateSlots, createAppointment, getAvailability } from './js/api.js';
     import { renderAppointments, cancelBooking } from './js/appointments.js';
 
     redirectIfNotAuthenticated();
@@ -200,6 +233,97 @@
       } finally {
         btn.disabled = false;
         btn.textContent = 'Olustur';
+      }
+    });
+
+    const addModal = document.getElementById('addAppointmentModal');
+    const addForm = document.getElementById('addAppointmentForm');
+    let selectedTime = null;
+
+    document.getElementById('addAppointmentBtn').addEventListener('click', () => {
+      addModal.classList.add('open');
+      const today = new Date().toISOString().slice(0, 10);
+      document.getElementById('appointmentDate').value = today;
+      document.getElementById('patientName').value = '';
+      document.getElementById('patientPhone').value = '';
+      document.getElementById('appointmentNotes').value = '';
+      selectedTime = null;
+      loadAvailableSlots(today);
+    });
+
+    addModal.querySelector('.modal-close').addEventListener('click', () => addModal.classList.remove('open'));
+    addModal.addEventListener('click', (e) => { if (e.target === addModal) addModal.classList.remove('open'); });
+
+    document.getElementById('appointmentDate').addEventListener('change', (e) => {
+      selectedTime = null;
+      loadAvailableSlots(e.target.value);
+    });
+
+    async function loadAvailableSlots(date) {
+      const container = document.getElementById('timeSlotContainer');
+      if (!date) {
+        container.innerHTML = '<p style="color:var(--text-muted);font-size:14px">Once tarih secin</p>';
+        return;
+      }
+      container.innerHTML = '<div class="spinner"></div>';
+      try {
+        const res = await getAvailability(user?.id || user?.user_id, date);
+        const slots = res.data || [];
+        if (!Array.isArray(slots) || !slots.length) {
+          container.innerHTML = '<p style="color:var(--text-muted);font-size:14px">Bu tarihte musait saat yok</p>';
+          return;
+        }
+        let html = '<div class="time-slots">';
+        slots.forEach(slot => {
+          const time = slot.time || slot.start_time || slot;
+          const timeStr = typeof time === 'string' ? time.slice(0, 5) : String(time).slice(0, 5);
+          html += `<div class="time-slot" data-time="${timeStr}">${timeStr}</div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+
+        container.querySelectorAll('.time-slot').forEach(el => {
+          el.addEventListener('click', () => {
+            container.querySelectorAll('.time-slot.selected').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+            selectedTime = el.dataset.time;
+          });
+        });
+      } catch (err) {
+        container.innerHTML = `<p style="color:var(--danger);font-size:14px">Saatler yuklenemedi: ${err.message}</p>`;
+      }
+    }
+
+    addForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const patientName = document.getElementById('patientName').value.trim();
+      const patientPhone = document.getElementById('patientPhone').value.trim();
+      const date = document.getElementById('appointmentDate').value;
+      const notes = document.getElementById('appointmentNotes').value.trim();
+
+      if (!patientName) { alert('Hasta adi gerekli'); return; }
+      if (!patientPhone) { alert('Hasta telefonu gerekli'); return; }
+      if (!selectedTime) { alert('Lutfen bir saat secin'); return; }
+
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = 'Olusturuluyor...';
+      try {
+        await createAppointment({
+          appointment_date: date,
+          appointment_time: selectedTime,
+          patient_name: patientName,
+          patient_phone: patientPhone,
+          notes: notes || undefined,
+        });
+        addModal.classList.remove('open');
+        alert('Randevu basariyla olusturuldu');
+        loadAppointments();
+      } catch (err) {
+        alert('Hata: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Randevu Olustur';
       }
     });
 

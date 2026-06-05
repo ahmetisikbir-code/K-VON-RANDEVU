@@ -35,16 +35,66 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { doctor_id, appointment_date, appointment_time, notes } = req.body;
+    const { doctor_id, appointment_date, appointment_time, notes, patient_name, patient_phone } = req.body;
 
-    if (!doctor_id || !appointment_date || !appointment_time) {
-      return res.status(400).json({ success: false, error: 'Doktor, tarih ve saat gerekli' });
+    if (!appointment_date || !appointment_time) {
+      return res.status(400).json({ success: false, error: 'Tarih ve saat gerekli' });
+    }
+
+    const actualDoctorId = doctor_id || req.user.id;
+
+    let resolvedPatientId = null;
+    let resolvedPatientName = null;
+    let resolvedPatientPhone = null;
+
+    if (patient_name || patient_phone) {
+      if (patient_phone) {
+        const phoneClean = patient_phone.replace(/[^0-9]/g, '');
+        const { data: existingPatient } = await supabase
+          .from('patients')
+          .select('id, full_name')
+          .eq('phone', phoneClean)
+          .maybeSingle();
+
+        if (existingPatient) {
+          resolvedPatientId = existingPatient.id;
+          resolvedPatientName = patient_name || existingPatient.full_name;
+          resolvedPatientPhone = phoneClean;
+          if (patient_name) {
+            const parts = patient_name.split(/\s+/);
+            await supabase.from('patients').update({
+              full_name: patient_name,
+              first_name: parts[0] || null,
+              updated_at: new Date().toISOString()
+            }).eq('id', existingPatient.id);
+          }
+        } else {
+          const parts = (patient_name || 'Bilinmeyen').split(/\s+/);
+          const { data: newPatient, error: createErr } = await supabase
+            .from('patients')
+            .insert({
+              phone: phoneClean,
+              full_name: patient_name || 'Bilinmeyen',
+              first_name: parts[0] || null
+            })
+            .select()
+            .single();
+
+          if (!createErr && newPatient) {
+            resolvedPatientId = newPatient.id;
+            resolvedPatientName = patient_name || 'Bilinmeyen';
+            resolvedPatientPhone = phoneClean;
+          }
+        }
+      } else {
+        resolvedPatientName = patient_name;
+      }
     }
 
     const { data: slot, error: slotError } = await supabase
       .from('availability')
       .select('*')
-      .eq('doctor_id', doctor_id)
+      .eq('doctor_id', actualDoctorId)
       .eq('date', appointment_date)
       .eq('time', appointment_time)
       .eq('is_booked', false)
@@ -54,19 +104,29 @@ router.post('/', async (req, res) => {
       return res.status(409).json({ success: false, error: 'Seçilen zaman dilimi müsait değil' });
     }
 
+    const appointmentData = {
+      doctor_id: actualDoctorId,
+      appointment_date,
+      appointment_time,
+      date: appointment_date,
+      time: appointment_time,
+      notes: notes || '',
+      status: 'confirmed',
+    };
+
+    if (resolvedPatientId !== null) {
+      appointmentData.patient_id = resolvedPatientId;
+    } else if (!patient_name && !patient_phone) {
+      appointmentData.patient_id = req.user.id;
+    }
+
+    if (resolvedPatientName) appointmentData.patient_name = resolvedPatientName;
+    if (resolvedPatientPhone) appointmentData.patient_phone = resolvedPatientPhone;
+
     const { data: appointment, error: apptError } = await supabase
       .from('appointments')
-      .insert([
-        {
-          patient_id: req.user.id,
-          doctor_id,
-          appointment_date,
-          appointment_time,
-          notes: notes || '',
-          status: 'confirmed',
-        },
-      ])
-      .select('*, doctor:doctors(*), patient:profiles(*)')
+      .insert([appointmentData])
+      .select('*, doctor:doctors(*)')
       .single();
 
     if (apptError) {
@@ -75,18 +135,21 @@ router.post('/', async (req, res) => {
 
     const { error: bookError } = await supabase
       .from('availability')
-      .update({ is_booked: true, booked_by: req.user.id })
+      .update({ is_booked: true, booked_by: actualDoctorId })
       .eq('id', slot.id);
 
     if (bookError) {
       console.error('Failed to mark slot as booked:', bookError);
     }
 
-    try {
-      const userPhone = req.user.profile?.phone;
-      if (userPhone) {
-        await sendAppointmentConfirmation(appointment, userPhone);
+    if (resolvedPatientPhone) {
+      try {
+        await sendAppointmentConfirmation(appointment, resolvedPatientPhone);
+      } catch (notifError) {
+        console.error('Notification error:', notifError);
       }
+    }
+    try {
       await notifyDoctor(appointment);
     } catch (notifError) {
       console.error('Notification error:', notifError);
