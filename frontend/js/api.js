@@ -57,6 +57,17 @@ export async function updateProfile(data) {
   });
 }
 
+export async function updateProfileFull(data) {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/api/auth/me`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Guncellenemedi'); }
+  return res.json();
+}
+
 export async function getAppointments() {
   return api('/api/appointments');
 }
@@ -95,6 +106,13 @@ export async function getAvailability(doctorId, date) {
 export async function generateSlots(doctorId, startDate, endDate) {
   return api('/api/availability/generate', {
     method: 'POST',
+    body: JSON.stringify({ start_date: startDate, end_date: endDate }),
+  });
+}
+
+export async function deleteSlots(startDate, endDate) {
+  return api('/api/availability', {
+    method: 'DELETE',
     body: JSON.stringify({ start_date: startDate, end_date: endDate }),
   });
 }

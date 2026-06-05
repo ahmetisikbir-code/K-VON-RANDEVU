@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kivon-randevu",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "4321", "--directory", "C:\\Users\\ahmet\\OneDrive\\Belgeler\\kivon-randevu\\frontend"],
+      "port": 4321
+    }
+  ]
+}

@@ -2,15 +2,21 @@ import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = 'sb_publishable_bWlpyQycwdlquuzoNBxNkg_1WiFqaOo';
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || 'sb_publishable_bWlpyQycwdlquuzoNBxNkg_1WiFqaOo';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function getDoctors() {
-  const { data, error } = await supabase
+  const doctorId = process.env.DOCTOR_ID;
+  let query = supabase
     .from('doctors')
-    .select('*, profile:profiles(*)')
-    .not('whatsapp_number', 'is', null);
+    .select('*, profile:profiles(*)');
+  if (doctorId) {
+    query = query.eq('id', doctorId);
+  } else {
+    query = query.not('whatsapp_number', 'is', null);
+  }
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 }
@@ -44,7 +50,7 @@ export async function getAvailableDoctors() {
 }
 
 export async function getAvailableSlots(doctorId, date) {
-  const { data, error } = await supabase
+  const { data: slots, error } = await supabase
     .from('availability')
     .select('*')
     .eq('doctor_id', doctorId)
@@ -52,7 +58,16 @@ export async function getAvailableSlots(doctorId, date) {
     .eq('is_booked', false)
     .order('start_time');
   if (error) throw error;
-  return data;
+
+  const { data: appointments } = await supabase
+    .from('appointments')
+    .select('time')
+    .eq('doctor_id', doctorId)
+    .eq('date', date)
+    .neq('status', 'cancelled');
+
+  const bookedTimes = new Set((appointments || []).map(a => a.time));
+  return (slots || []).filter(s => !bookedTimes.has(s.start_time));
 }
 
 export async function getAvailableDates(doctorId) {

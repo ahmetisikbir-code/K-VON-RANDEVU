@@ -231,9 +231,14 @@ async function renderStep3() {
 
     let html = '<p style="margin-bottom:16px;color:var(--text-muted)">Müsait saatler:</p><div class="time-slots">';
     slots.forEach(slot => {
-      const time = slot.time || slot.start_time || slot;
+      const raw = slot.time || slot.start_time || slot;
+      const timeStr = typeof raw === 'string' ? raw.slice(0, 5) : String(raw).slice(0, 5);
+      const parts = timeStr.split(':');
+      const h = parseInt(parts[0]);
+      const m = parseInt(parts[1]) || 0;
+      const rounded = m < 15 ? `${String(h).padStart(2,'0')}:00` : m < 45 ? `${String(h).padStart(2,'0')}:30` : `${String(h+1).padStart(2,'0')}:00`;
       const isBooked = slot.isBooked || slot.is_booked || false;
-      html += `<div class="time-slot ${isBooked ? 'disabled' : ''}" data-time="${time}">${time.slice(0, 5)}</div>`;
+      html += `<div class="time-slot ${isBooked ? 'disabled' : ''}" data-time="${rounded}">${rounded}</div>`;
     });
     html += '</div><button class="btn btn-primary form-submit" id="step3Confirm" style="margin-top:20px" disabled>Randevuyu Onayla</button>';
 

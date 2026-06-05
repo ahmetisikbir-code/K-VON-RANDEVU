@@ -4,3 +4,6 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+whatsapp-bot/sessions/
+whatsapp-bot/.wwebjs_cache/
+

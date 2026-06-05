@@ -19,7 +19,10 @@
 <body>
   <div class="dashboard">
     <aside class="dash-sidebar" id="sidebar">
-      <a href="admin.html" class="dash-sidebar-logo">KIVON</a>
+      <a href="admin.html" class="dash-sidebar-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;vertical-align:middle;margin-right:8px"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        KIVON
+      </a>
       <nav class="dash-nav">
         <a href="admin.html" class="active">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -27,12 +30,12 @@
         </a>
         <a href="profile.html">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Profil
+          Ayarlar
         </a>
       </nav>
       <div class="dash-sidebar-footer">
         <a href="#" id="logoutBtn" style="color:var(--danger)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;vertical-align:middle;margin-right:8px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-right:8px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Cikis Yap
         </a>
       </div>
@@ -56,9 +59,42 @@
           <span id="availabilityStatus" style="font-size:14px;color:var(--success);font-weight:500">Musait</span>
         </div>
         <button class="btn btn-primary" id="generateSlotsBtn">Slot Olustur</button>
+        <button class="btn btn-danger" id="deleteSlotsBtn">Slot Kaldir</button>
         <button class="btn btn-outline" id="addAppointmentBtn">Yeni Randevu Ekle</button>
       </div>
 
+      <div class="dash-stats" id="statsContainer">
+        <div class="stat-card glass">
+          <div class="stat-value" id="statTotal">0</div>
+          <div class="stat-label">Toplam Randevu</div>
+        </div>
+        <div class="stat-card glass">
+          <div class="stat-value" id="statToday">0</div>
+          <div class="stat-label">Bugun</div>
+        </div>
+        <div class="stat-card glass">
+          <div class="stat-value" id="statPending">0</div>
+          <div class="stat-label">Beklemede</div>
+        </div>
+        <div class="stat-card glass">
+          <div class="stat-value" id="statCompleted">0</div>
+          <div class="stat-label">Tamamlanan</div>
+        </div>
+      </div>
+
+      <div class="filter-bar" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <button class="btn btn-sm filter-btn active" data-filter="all" style="background:var(--glass);border:1px solid var(--glass-border);color:var(--text)">Tumu</button>
+        <button class="btn btn-sm filter-btn" data-filter="pending" style="background:var(--glass);border:1px solid var(--glass-border);color:var(--text)">Beklemede</button>
+        <button class="btn btn-sm filter-btn" data-filter="confirmed" style="background:var(--glass);border:1px solid var(--glass-border);color:var(--text)">Onaylandi</button>
+        <button class="btn btn-sm filter-btn" data-filter="cancelled" style="background:var(--glass);border:1px solid var(--glass-border);color:var(--text)">Iptal</button>
+        <button class="btn btn-sm filter-btn" data-filter="completed" style="background:var(--glass);border:1px solid var(--glass-border);color:var(--text)">Tamamlandi</button>
+        <button class="btn btn-sm" id="refreshBtn" style="margin-left:auto;background:var(--glass);border:1px solid var(--glass-border);color:var(--neon)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle;margin-right:4px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Yenile
+        </button>
+      </div>
+
+      <div id="todayMini" style="margin-bottom:16px"></div>
       <div id="appointmentsContainer"></div>
     </main>
   </div>
@@ -77,6 +113,24 @@
           <input type="date" class="form-input" id="endDate" required>
         </div>
         <button type="submit" class="btn btn-primary form-submit">Olustur</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="deleteSlotsModal">
+    <div class="modal glass" style="position:relative">
+      <button class="modal-close">&times;</button>
+      <h2>Slot Kaldir</h2>
+      <form id="deleteSlotsForm">
+        <div class="form-group">
+          <label>Baslangic Tarihi</label>
+          <input type="date" class="form-input" id="deleteStartDate" required>
+        </div>
+        <div class="form-group">
+          <label>Bitis Tarihi</label>
+          <input type="date" class="form-input" id="deleteEndDate" required>
+        </div>
+        <button type="submit" class="btn btn-danger form-submit">Kaldir</button>
       </form>
     </div>
   </div>
@@ -115,7 +169,7 @@
 
   <script type="module">
     import { redirectIfNotAuthenticated, getUser, clearToken } from './js/auth.js';
-    import { logout, getAppointments, cancelAppointment, generateSlots, createAppointment, getAvailability } from './js/api.js';
+    import { logout, getAppointments, cancelAppointment, generateSlots, deleteSlots, createAppointment, getAvailability } from './js/api.js';
     import { renderAppointments, cancelBooking } from './js/appointments.js';
 
     redirectIfNotAuthenticated();
@@ -126,69 +180,102 @@
       avatar.textContent = user.full_name.charAt(0).toUpperCase();
     }
 
+    let currentFilter = 'all';
+    let allAppointments = [];
+
     async function loadAppointments() {
       const container = document.getElementById('appointmentsContainer');
       try {
         const data = await getAppointments();
-        const appointments = data.appointments || data || [];
-        container.innerHTML = '';
+        allAppointments = data.appointments || data || [];
 
-        if (!appointments.length) {
-          container.innerHTML = `
-            <div class="empty-state">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              <h3>Henuz randevu yok</h3>
-              <p>Henuz size ait bir randevu bulunmuyor.</p>
-            </div>
-          `;
-          return;
+        const today = new Date().toISOString().slice(0, 10);
+        const todayApts = allAppointments.filter(a => (a.date || a.appointment_date) === today);
+        const total = allAppointments.length;
+        const pending = allAppointments.filter(a => (a.status || 'pending').toLowerCase() === 'pending').length;
+        const completed = allAppointments.filter(a => (a.status || '').toLowerCase() === 'completed').length;
+
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statToday').textContent = todayApts.length;
+        document.getElementById('statPending').textContent = pending;
+        document.getElementById('statCompleted').textContent = completed;
+
+        const todayEl = document.getElementById('todayMini');
+        if (todayApts.length) {
+          todayEl.innerHTML = `<div class="glass" style="padding:12px 20px;display:flex;align-items:center;gap:12px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--neon)" stroke-width="2" style="width:18px;height:18px;flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span style="font-size:14px;font-weight:500">Bugun <strong>${todayApts.length}</strong> randevu</span>
+            <span style="font-size:13px;color:var(--text-muted)">${todayApts.map(a => a.time || (a.appointment_time || '').slice(0,5)).filter(Boolean).join(', ')}</span>
+          </div>`;
+        } else {
+          todayEl.innerHTML = '';
         }
 
-        appointments.forEach(apt => {
-          const date = new Date(apt.date || apt.appointment_date);
-          const day = date.getDate();
-          const month = date.toLocaleString('tr-TR', { month: 'short' });
-          const time = apt.time || (apt.appointment_time ? apt.appointment_time.slice(0, 5) : '');
-          const status = (apt.status || 'pending').toLowerCase();
-          const patientName = apt.patient_name || apt.user?.full_name || 'Bilinmeyen Hasta';
-          const fullDate = date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
-
-          const card = document.createElement('div');
-          card.className = 'appointment-card glass animate-fadeIn';
-          card.innerHTML = `
-            <div class="appointment-date-box">
-              <div class="day">${day}</div>
-              <div class="month">${month}</div>
-            </div>
-            <div class="appointment-info">
-              <h4>${patientName}</h4>
-              <p>${fullDate}</p>
-            </div>
-            <div class="appointment-time">${time}</div>
-            <span class="badge badge-${status}">${statusLabel(status)}</span>
-            <div class="appointment-actions">
-              ${status === 'pending' || status === 'confirmed' ? `<button class="btn btn-sm btn-danger" data-id="${apt.id || apt.appointment_id}">Iptal</button>` : ''}
-            </div>
-          `;
-          container.appendChild(card);
-
-          const cancelBtn = card.querySelector('.btn-danger');
-          if (cancelBtn) {
-            cancelBtn.addEventListener('click', async () => {
-              if (await cancelBooking(cancelBtn.dataset.id)) {
-                loadAppointments();
-              }
-            });
-          }
-        });
+        renderFilteredAppointments();
       } catch (err) {
         container.innerHTML = `<p style="color:var(--danger);text-align:center;padding:40px">${err.message}</p>`;
       }
+    }
+
+    function renderFilteredAppointments() {
+      const container = document.getElementById('appointmentsContainer');
+      const filtered = currentFilter === 'all' ? allAppointments : allAppointments.filter(a => (a.status || 'pending').toLowerCase() === currentFilter);
+
+      container.innerHTML = '';
+
+      if (!filtered.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <h3>Randevu bulunamadi</h3>
+            <p>Bu filtreye uygun randevu yok.</p>
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach(apt => {
+        const date = new Date(apt.date || apt.appointment_date);
+        const day = date.getDate();
+        const month = date.toLocaleString('tr-TR', { month: 'short' });
+        const time = apt.time || (apt.appointment_time ? apt.appointment_time.slice(0, 5) : '');
+        const status = (apt.status || 'pending').toLowerCase();
+        const patientName = apt.patient_name || apt.user?.full_name || 'Bilinmeyen Hasta';
+        const fullDate = date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+        const card = document.createElement('div');
+        card.className = 'appointment-card glass animate-fadeIn';
+        card.innerHTML = `
+          <div class="appointment-date-box">
+            <div class="day">${day}</div>
+            <div class="month">${month}</div>
+          </div>
+          <div class="appointment-info">
+            <h4>${patientName}</h4>
+            <p>${fullDate}</p>
+          </div>
+          <div class="appointment-time">${time}</div>
+          <span class="badge badge-${status}">${statusLabel(status)}</span>
+          <div class="appointment-actions">
+            ${status === 'pending' || status === 'confirmed' ? `<button class="btn btn-sm btn-danger" data-id="${apt.id || apt.appointment_id}">Iptal</button>` : ''}
+          </div>
+        `;
+        container.appendChild(card);
+
+        const cancelBtn = card.querySelector('.btn-danger');
+        if (cancelBtn) {
+          cancelBtn.addEventListener('click', async () => {
+            if (await cancelBooking(cancelBtn.dataset.id)) {
+              loadAppointments();
+            }
+          });
+        }
+      });
     }
 
     function statusLabel(status) {
@@ -196,7 +283,25 @@
       return labels[status] || status;
     }
 
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => {
+          b.classList.remove('active');
+          b.style.background = 'var(--glass)';
+          b.style.color = 'var(--text)';
+        });
+        btn.classList.add('active');
+        btn.style.background = 'var(--neon)';
+        btn.style.color = 'var(--bg)';
+        currentFilter = btn.dataset.filter;
+        renderFilteredAppointments();
+      });
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', loadAppointments);
+
     loadAppointments();
+    setInterval(loadAppointments, 30000);
 
     const toggle = document.getElementById('availabilityToggle');
     const statusEl = document.getElementById('availabilityStatus');
@@ -240,6 +345,35 @@
       }
     });
 
+    const deleteModal = document.getElementById('deleteSlotsModal');
+    document.getElementById('deleteSlotsBtn').addEventListener('click', () => {
+      deleteModal.classList.add('open');
+      document.getElementById('deleteStartDate').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('deleteEndDate').value = '';
+    });
+    deleteModal.querySelector('.modal-close').addEventListener('click', () => deleteModal.classList.remove('open'));
+    deleteModal.addEventListener('click', (e) => { if (e.target === deleteModal) deleteModal.classList.remove('open'); });
+    document.getElementById('deleteSlotsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const startDate = document.getElementById('deleteStartDate').value;
+      const endDate = document.getElementById('deleteEndDate').value;
+      if (!confirm(`${startDate} - ${endDate} arasindaki tum slotlari kaldirmak istediginize emin misiniz?`)) return;
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = 'Kaldiriliyor...';
+      try {
+        const res = await deleteSlots(startDate, endDate);
+        deleteModal.classList.remove('open');
+        alert(`Toplam ${res.count || 0} slot kaldirildi`);
+        loadAppointments();
+      } catch (err) {
+        alert('Hata: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Kaldir';
+      }
+    });
+
     const addModal = document.getElementById('addAppointmentModal');
     const addForm = document.getElementById('addAppointmentForm');
     let selectedTime = null;
@@ -279,9 +413,13 @@
         }
         let html = '<div class="time-slots">';
         slots.forEach(slot => {
-          const time = slot.time || slot.start_time || slot;
-          const timeStr = typeof time === 'string' ? time.slice(0, 5) : String(time).slice(0, 5);
-          html += `<div class="time-slot" data-time="${timeStr}">${timeStr}</div>`;
+          const raw = slot.time || slot.start_time || slot;
+          const timeStr = typeof raw === 'string' ? raw.slice(0, 5) : String(raw).slice(0, 5);
+          const parts = timeStr.split(':');
+          const h = parseInt(parts[0]);
+          const m = parseInt(parts[1]) || 0;
+          const rounded = m < 15 ? `${String(h).padStart(2,'0')}:00` : m < 45 ? `${String(h).padStart(2,'0')}:30` : `${String(h+1).padStart(2,'0')}:00`;
+          html += `<div class="time-slot" data-time="${rounded}">${rounded}</div>`;
         });
         html += '</div>';
         container.innerHTML = html;

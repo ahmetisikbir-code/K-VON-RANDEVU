@@ -90,4 +90,41 @@ router.post('/generate', auth, async (req, res) => {
   }
 });
 
+router.delete('/', auth, async (req, res) => {
+  try {
+    const { start_date, end_date } = req.body;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({ success: false, error: 'Başlangıç ve bitiş tarihi gerekli' });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', req.user.id)
+      .single();
+
+    if (!profile || (profile.role !== 'doctor' && profile.role !== 'admin')) {
+      return res.status(403).json({ success: false, error: 'Sadece doktorlar müsaitlik silebilir' });
+    }
+
+    const { data: deleted, error } = await supabase
+      .from('availability')
+      .delete()
+      .eq('doctor_id', req.user.id)
+      .gte('date', start_date)
+      .lte('date', end_date)
+      .select();
+
+    if (error) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+
+    return res.json({ success: true, data: deleted, count: deleted?.length || 0 });
+  } catch (err) {
+    console.error('Delete availability error:', err);
+    return res.status(500).json({ success: false, error: 'Müsaitlik silinemedi' });
+  }
+});
+
 export default router;

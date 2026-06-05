@@ -1,26 +1,30 @@
 import 'dotenv/config';
+import fs from 'fs';
 import { startAllDoctors, getAllClients } from './client-manager.js';
 import { startDailyReport } from './daily-report.js';
 
-console.log('');
-console.log('╔══════════════════════════════════════╗');
-console.log('║   KIVON WhatsApp Randevu Asistani   ║');
-console.log('╚══════════════════════════════════════╝');
-console.log('');
+const logFile = 'C:/Users/ahmet/AppData/Local/Temp/opencode/bot-log.txt';
+const log = (msg) => { const t = new Date().toISOString(); const line = `[${t}] ${msg}\n`; fs.appendFileSync(logFile, line); console.log(msg); }; log('=== BOT BASLIYOR ===');
+
+log('');
+log('╔══════════════════════════════════════╗');
+log('║   KIVON WhatsApp Randevu Asistani   ║');
+log('╚══════════════════════════════════════╝');
+log('');
 
 startAllDoctors()
   .then(() => {
-    console.log('\n✅ Bot baslatildi. Mesajlari dinliyor...');
-    console.log('Durmak icin Ctrl+C');
+    log('\n✅ Bot baslatildi. Mesajlari dinliyor...');
+    log('Durmak icin Ctrl+C');
     const clients = getAllClients();
     if (clients.length) startDailyReport(clients);
   })
   .catch(err => {
-    console.error('❌ Baslatma hatasi:', err.message);
+    log('❌ Baslatma hatasi:' + err.message);
     process.exit(1);
   });
 
 process.on('SIGINT', () => {
-  console.log('\nBot durduruluyor...');
+  log('\nBot durduruluyor...');
   process.exit(0);
 });

@@ -8,24 +8,28 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
-    }
-  }
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
   </script>
   <link rel="stylesheet" href="css/style.css">
   <style>
     .profile-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
-    .profile-card { width: 100%; max-width: 520px; padding: 40px; }
+    .profile-card { width: 100%; max-width: 640px; padding: 40px; }
     .profile-card h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
     .profile-card .sub { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
-    .profile-avatar { width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, var(--neon), var(--purple)); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; color: var(--bg); margin-bottom: 16px; }
+    .profile-avatar { width: 80px; height: 80px; border-radius: 20px; background: linear-gradient(135deg, var(--neon), var(--purple)); display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 800; color: var(--bg); margin-bottom: 16px; cursor: pointer; position: relative; overflow: hidden; }
+    .profile-avatar:hover::after { content: 'Degistir'; position: absolute; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; }
     .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 14px; text-decoration: none; margin-bottom: 24px; padding: 8px 16px; border-radius: 8px; transition: all 0.3s; }
     .back-link:hover { background: var(--glass); color: var(--text); }
     .save-btn { margin-top: 32px; }
     .logout-link { display: flex; align-items: center; gap: 8px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--glass-border); color: var(--danger); font-size: 14px; text-decoration: none; }
     .logout-link:hover { opacity: 0.8; }
+    .section-title { font-size: 16px; font-weight: 600; margin: 24px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--glass-border); color: var(--neon); }
+    .tag-item { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 20px; font-size: 13px; margin: 4px; }
+    .tag-item .remove-tag { cursor: pointer; color: var(--danger); font-weight: 700; font-size: 14px; line-height: 1; }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .avatar-img { width: 100%; height: 100%; object-fit: cover; }
+    .hidden-input { display: none; }
+    @media (max-width: 600px) { .row-2 { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -36,26 +40,68 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         Geri Don
       </a>
-      <div class="profile-avatar" id="avatarInitial">K</div>
-      <h1>Profil</h1>
-      <p class="sub">Hesap bilgilerinizi duzenleyin</p>
+      <div class="profile-avatar" id="avatarContainer">
+        <img id="avatarImg" class="avatar-img" style="display:none" alt="">
+        <span id="avatarInitial">K</span>
+        <input type="file" id="avatarInput" class="hidden-input" accept="image/*">
+      </div>
+      <h1>Profil & Ayarlar</h1>
+      <p class="sub">Hesap bilgilerinizi, hizmetlerinizi ve calisma saatlerinizi duzenleyin</p>
+
       <form id="profileForm">
-        <div class="form-group">
-          <label>Ad Soyad</label>
-          <input type="text" class="form-input" id="fullName" required placeholder="Adiniz ve soyadiniz">
+        <div class="section-title">Temel Bilgiler</div>
+        <div class="row-2">
+          <div class="form-group"><label>Ad</label><input type="text" class="form-input" id="firstName" placeholder="Adiniz"></div>
+          <div class="form-group"><label>Soyad</label><input type="text" class="form-input" id="lastName" placeholder="Soyadiniz"></div>
         </div>
-        <div class="form-group">
-          <label>E-posta</label>
-          <input type="email" class="form-input" id="email" placeholder="ornek@email.com" disabled style="opacity:0.6">
+        <div class="form-group"><label>Ad Soyad</label><input type="text" class="form-input" id="fullName" required placeholder="Adiniz ve soyadiniz"></div>
+        <div class="form-group"><label>E-posta</label><input type="email" class="form-input" id="email" placeholder="ornek@email.com" disabled style="opacity:0.6"></div>
+        <div class="form-group"><label>Telefon</label><input type="tel" class="form-input" id="phone" placeholder="05XX XXX XX XX"></div>
+        <div class="row-2">
+          <div class="form-group"><label>Meslek / Unvan</label><input type="text" class="form-input" id="title" placeholder="Dr., Uzm. Dr., vb."></div>
+          <div class="form-group"><label>Cinsiyet</label><select class="form-select" id="gender"><option value="">Seciniz</option><option value="male">Erkek</option><option value="female">Kadin</option><option value="other">Belirtmek Istemiyorum</option></select></div>
         </div>
+
+        <div class="section-title">Profil Fotografi</div>
+        <div class="form-group"><label>Fotograf URL (veya yuklemek icin avatar'a tiklayin)</label><input type="text" class="form-input" id="avatarUrl" placeholder="https://..."></div>
+
+        <div class="section-title">Hizmetler</div>
         <div class="form-group">
-          <label>Telefon</label>
-          <input type="tel" class="form-input" id="phone" placeholder="05XX XXX XX XX">
+          <div style="display:flex;gap:8px">
+            <input type="text" class="form-input" id="serviceInput" placeholder="Hizmet adi (orn: Genel Muayene)" style="flex:1">
+            <button type="button" class="btn btn-sm btn-primary" id="addServiceBtn">Ekle</button>
+          </div>
+          <div id="servicesContainer" style="margin-top:8px"></div>
         </div>
+
+        <div class="section-title">Fiyatlar</div>
+        <div class="form-group"><label>Varsayilan Ucret (TL)</label><input type="number" class="form-input" id="price" placeholder="0" min="0"></div>
+
+        <div class="section-title">Calisma Saatleri</div>
+        <div class="row-2">
+          <div class="form-group"><label>Baslama Saati</label><input type="time" class="form-input" id="workStart" value="09:00"></div>
+          <div class="form-group"><label>Bitis Saati</label><input type="time" class="form-input" id="workEnd" value="18:00"></div>
+        </div>
+        <div class="row-2">
+          <div class="form-group"><label>Mola Baslangic</label><input type="time" class="form-input" id="breakStart" value="12:00"></div>
+          <div class="form-group"><label>Mola Bitis</label><input type="time" class="form-input" id="breakEnd" value="13:00"></div>
+        </div>
+
+        <div class="section-title">Tatil Gunleri</div>
         <div class="form-group">
-          <label>Yeni Sifre (opsiyonel)</label>
-          <input type="password" class="form-input" id="password" placeholder="Bos birakilirsa degismez" autocomplete="new-password">
+          <div style="display:flex;gap:8px">
+            <input type="date" class="form-input" id="holidayInput" style="flex:1">
+            <button type="button" class="btn btn-sm btn-primary" id="addHolidayBtn">Ekle</button>
+          </div>
+          <div id="holidaysContainer" style="margin-top:8px"></div>
         </div>
+
+        <div class="section-title">Sifre Degistir</div>
+        <div class="row-2">
+          <div class="form-group"><label>Yeni Sifre</label><input type="password" class="form-input" id="password" placeholder="Bos birakilirsa degismez" autocomplete="new-password"></div>
+          <div class="form-group"><label>Sifre Tekrar</label><input type="password" class="form-input" id="passwordConfirm" placeholder="Sifrenizi tekrar girin"></div>
+        </div>
+
         <button type="submit" class="btn btn-primary form-submit save-btn" id="saveBtn">Kaydet</button>
       </form>
       <a href="#" class="logout-link" id="logoutBtn">
@@ -73,13 +119,61 @@
     redirectIfNotAuthenticated();
     const user = getUser();
 
-    const avatar = document.getElementById('avatarInitial');
-    if (user && user.full_name) avatar.textContent = user.full_name.charAt(0).toUpperCase();
+    const avatarInitial = document.getElementById('avatarInitial');
+    const avatarImg = document.getElementById('avatarImg');
+    const avatarContainer = document.getElementById('avatarContainer');
+    const avatarInput = document.getElementById('avatarInput');
+    const avatarUrl = document.getElementById('avatarUrl');
+    if (user && user.full_name) avatarInitial.textContent = user.full_name.charAt(0).toUpperCase();
 
     const backLink = document.getElementById('backLink');
-    if (user && user.role === 'doctor') {
-      backLink.href = 'admin.html';
+    if (user && user.role === 'doctor') backLink.href = 'admin.html';
+
+    let services = [];
+    let holidays = [];
+
+    avatarContainer.addEventListener('click', () => avatarInput.click());
+    avatarInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        avatarImg.src = ev.target.result;
+        avatarImg.style.display = 'block';
+        avatarInitial.style.display = 'none';
+        avatarUrl.value = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+    avatarUrl.addEventListener('input', () => {
+      if (avatarUrl.value) {
+        avatarImg.src = avatarUrl.value;
+        avatarImg.style.display = 'block';
+        avatarInitial.style.display = 'none';
+      }
+    });
+
+    function renderServices() {
+      const c = document.getElementById('servicesContainer');
+      c.innerHTML = services.map((s, i) => `<span class="tag-item"><span class="remove-tag" data-idx="${i}">&times;</span>${s}</span>`).join('');
+      c.querySelectorAll('.remove-tag').forEach(el => el.addEventListener('click', () => { services.splice(parseInt(el.dataset.idx), 1); renderServices(); }));
     }
+    document.getElementById('addServiceBtn').addEventListener('click', () => {
+      const inp = document.getElementById('serviceInput');
+      const val = inp.value.trim();
+      if (val && !services.includes(val)) { services.push(val); inp.value = ''; renderServices(); }
+    });
+    document.getElementById('serviceInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addServiceBtn').click(); } });
+
+    function renderHolidays() {
+      const c = document.getElementById('holidaysContainer');
+      c.innerHTML = holidays.map((h, i) => `<span class="tag-item"><span class="remove-tag" data-idx="${i}">&times;</span>${h}</span>`).join('');
+      c.querySelectorAll('.remove-tag').forEach(el => el.addEventListener('click', () => { holidays.splice(parseInt(el.dataset.idx), 1); renderHolidays(); }));
+    }
+    document.getElementById('addHolidayBtn').addEventListener('click', () => {
+      const inp = document.getElementById('holidayInput');
+      if (inp.value && !holidays.includes(inp.value)) { holidays.push(inp.value); inp.value = ''; renderHolidays(); }
+    });
 
     async function loadProfile() {
       try {
@@ -92,9 +186,21 @@
         }
         if (profile) {
           document.getElementById('fullName').value = profile.full_name || u?.full_name || '';
+          document.getElementById('firstName').value = profile.first_name || '';
+          document.getElementById('lastName').value = profile.last_name || '';
           document.getElementById('phone').value = profile.phone || u?.phone || '';
+          document.getElementById('title').value = profile.title || profile.specialty || '';
+          document.getElementById('gender').value = profile.gender || '';
+          document.getElementById('price').value = profile.price || '';
+          document.getElementById('workStart').value = profile.work_start || '09:00';
+          document.getElementById('workEnd').value = profile.work_end || '18:00';
+          document.getElementById('breakStart').value = profile.break_start || '12:00';
+          document.getElementById('breakEnd').value = profile.break_end || '13:00';
+          if (profile.avatar_url) { avatarUrl.value = profile.avatar_url; avatarImg.src = profile.avatar_url; avatarImg.style.display = 'block'; avatarInitial.style.display = 'none'; }
+          if (profile.services) { services = Array.isArray(profile.services) ? profile.services : (typeof profile.services === 'string' ? profile.services.split(',').map(s => s.trim()).filter(Boolean) : []); renderServices(); }
+          if (profile.holidays) { holidays = Array.isArray(profile.holidays) ? profile.holidays : (typeof profile.holidays === 'string' ? profile.holidays.split(',').map(s => s.trim()).filter(Boolean) : []); renderHolidays(); }
           const initial = (profile.full_name || u?.full_name || 'K').charAt(0).toUpperCase();
-          avatar.textContent = initial;
+          if (!avatarUrl.value) avatarInitial.textContent = initial;
         }
       } catch (err) {
         console.error('Profil yuklenemedi:', err);
@@ -108,15 +214,41 @@
       btn.textContent = 'Kaydediliyor...';
       try {
         const fullName = document.getElementById('fullName').value.trim();
+        const firstName = document.getElementById('firstName').value.trim();
+        const lastName = document.getElementById('lastName').value.trim();
         const phone = document.getElementById('phone').value.trim();
+        const title = document.getElementById('title').value.trim();
+        const gender = document.getElementById('gender').value;
+        const price = document.getElementById('price').value;
+        const workStart = document.getElementById('workStart').value;
+        const workEnd = document.getElementById('workEnd').value;
+        const breakStart = document.getElementById('breakStart').value;
+        const breakEnd = document.getElementById('breakEnd').value;
+        const avatar = avatarUrl.value.trim();
         const password = document.getElementById('password').value;
+        const passwordConfirm = document.getElementById('passwordConfirm').value;
+
         const data = {};
         if (fullName) data.full_name = fullName;
+        if (firstName) data.first_name = firstName;
+        if (lastName) data.last_name = lastName;
         if (phone) data.phone = phone;
-        if (Object.keys(data).length > 0) {
+        if (title) { data.specialty = title; data.title = title; }
+        if (gender) data.gender = gender;
+        if (price) data.price = price;
+        if (workStart) data.work_start = workStart;
+        if (workEnd) data.work_end = workEnd;
+        if (breakStart) data.break_start = breakStart;
+        if (breakEnd) data.break_end = breakEnd;
+        if (avatar) data.avatar_url = avatar;
+        data.services = services;
+        data.holidays = holidays;
+
+        if (Object.keys(data).length > 1) {
           await updateProfile(data);
         }
         if (password && password.length >= 6) {
+          if (password !== passwordConfirm) { alert('Sifreler eslesmiyor'); btn.disabled = false; btn.textContent = 'Kaydet'; return; }
           const token = getToken();
           const res = await fetch(`${window.API_BASE_URL || window.location.origin}/api/auth/me`, {
             method: 'PUT',
@@ -127,6 +259,7 @@
         }
         alert('Profil basariyla guncellendi');
         document.getElementById('password').value = '';
+        document.getElementById('passwordConfirm').value = '';
         loadProfile();
       } catch (err) {
         alert('Hata: ' + err.message);

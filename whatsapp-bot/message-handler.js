@@ -248,7 +248,13 @@ async function handleBookingFlow(doctor, phone, state, userText) {
       state.step = 'awaiting_time';
       state.bookingDate = date;
       state.availableSlots = slots;
-      const times = slots.map((s, i) => `${i+1}. ${String(s.start_time).slice(0, 5)}`).join('\n');
+      const times = slots.map((s, i) => {
+        const raw = String(s.start_time).slice(0, 5);
+        const parts = raw.split(':');
+        const h = parseInt(parts[0]), m = parseInt(parts[1]) || 0;
+        const rounded = m < 15 ? `${String(h).padStart(2,'0')}:00` : m < 45 ? `${String(h).padStart(2,'0')}:30` : `${String(h+1).padStart(2,'0')}:00`;
+        return `${i+1}. ${rounded}`;
+      }).join('\n');
       return { reply: `${formatDate(date)} için uygun saatler:\n${times}\n\nLütfen bir saat seçin (1-${slots.length}):`, state, bookingConfirmed: false };
     }
 
@@ -379,9 +385,12 @@ async function getPhoneFromMessage(msg) {
       const contact = await msg.getContact();
       if (contact) {
         const num = String(contact.number || '').replace(/[^0-9]/g, '');
-        if (num && num.length > 5) return num;
+        if (num && num.length > 5 && num.length < 16) {
+          log('getPhoneFromMessage: contact.number=' + num);
+          return num;
+        }
         const pushname = String(contact.pushname || contact.name || '').trim();
-        if (pushname) state = state || {}; if (!state) state = {}; if (!state.pushName) state = state || {}; state.pushName = pushname;
+        if (pushname) { if (!this._state) this._state = {}; this._state.pushName = pushname; }
       }
     }
   } catch (e) {
@@ -391,20 +400,17 @@ async function getPhoneFromMessage(msg) {
   try {
     if (msg._data) {
       const data = msg._data;
-      const phoneCandidates = [
-        data.phoneNumber, data.whatsappNumber, data.contactPhone,
-        data.from?.phoneNumber, data.from?.whatsappNumber,
-        data.notifyName && typeof data.notifyName === 'object' ? null : null
-      ];
-      for (const candidate of phoneCandidates) {
-        if (candidate) {
-          const num = String(candidate).replace(/[^0-9]/g, '');
-          if (num && num.length > 5 && num.length < 16) return num;
-        }
+      if (data.phoneNumber) {
+        const num = String(data.phoneNumber).replace(/[^0-9]/g, '');
+        if (num && num.length > 5 && num.length < 16) { log('getPhoneFromMessage: _data.phoneNumber=' + num); return num; }
+      }
+      if (data.whatsappNumber) {
+        const num = String(data.whatsappNumber).replace(/[^0-9]/g, '');
+        if (num && num.length > 5 && num.length < 16) { log('getPhoneFromMessage: _data.whatsappNumber=' + num); return num; }
       }
       if (data.participant) {
         const num = String(data.participant).replace(/[^0-9]/g, '');
-        if (num && num.length > 5 && num.length < 16) return num;
+        if (num && num.length > 5 && num.length < 16) { log('getPhoneFromMessage: _data.participant=' + num); return num; }
       }
     }
   } catch (e) {}
@@ -412,19 +418,24 @@ async function getPhoneFromMessage(msg) {
   try {
     if (msg.author) {
       const num = msg.author.replace(/[^0-9]/g, '');
-      if (num && num.length > 5 && num.length < 16) return num;
+      if (num && num.length > 5 && num.length < 16) { log('getPhoneFromMessage: author=' + num); return num; }
     }
   } catch (e) {}
 
   const rawJid = msg.from || '';
-  const numeric = rawJid.replace(/[^0-9]/g, '');
-  const atIndex = rawJid.indexOf('@');
-  const userPart = atIndex > 0 ? rawJid.substring(0, atIndex) : rawJid;
+  log('getPhoneFromMessage: rawJid=' + rawJid);
+  let jid = rawJid;
+  if (jid.startsWith('jid_')) jid = jid.substring(4);
+  const atIndex = jid.indexOf('@');
+  const userPart = atIndex > 0 ? jid.substring(0, atIndex) : jid;
   const numericUser = userPart.replace(/[^0-9]/g, '');
   if (numericUser) {
+    log('getPhoneFromMessage: from jid part=' + numericUser);
     if (numericUser.length > 5 && numericUser.length < 16) return numericUser;
     return numericUser;
   }
+  const numeric = jid.replace(/[^0-9]/g, '');
+  log('getPhoneFromMessage: fallback numeric=' + numeric);
   return numeric;
 }
 
