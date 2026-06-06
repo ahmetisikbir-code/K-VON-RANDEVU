@@ -253,11 +253,27 @@ async function handleBookingFlow(doctor, phone, state, userText) {
       return { reply: `Lütfen listeden bir doktor seçin:\n${list}`, state, bookingConfirmed: false };
     }
     state.selectedDoctorId = selected.id;
+    if (state.pendingDate) {
+      const pd = state.pendingDate;
+      delete state.pendingDate;
+      state.bookingDate = pd;
+      const slots = await getAvailableSlots(selected.id, pd);
+      if (!slots.length) {
+        state.step = 'awaiting_details';
+        return { reply: `${formatDate(pd)} için boş saat bulunamadı. Başka bir gün düşünür müsünüz?`, state, bookingConfirmed: false };
+      }
+      state.step = 'awaiting_time';
+      state.availableSlots = slots;
+      const times = slots.map((s, i) => `${i+1}. ${String(s.start_time).slice(0,5)}`).join('\n');
+      return { reply: `${formatDate(pd)} için uygun saatler:\n${times}\n\nLütfen bir saat seçin (1-${slots.length}):`, state, bookingConfirmed: false };
+    }
     state.step = 'awaiting_details';
     return { reply: 'Hangi gün için randevu almak istersiniz? (Örn: yarın, pazartesi, 15.06.2026)', state, bookingConfirmed: false };
   }
 
   if (step === 'idle') {
+    const pendingDate = extractDateFromText(userText);
+    if (pendingDate) state.pendingDate = pendingDate;
     const clinicDoctors = await getClinicDoctors(doctor);
     if (clinicDoctors.length > 1) {
       state.clinicDoctors = clinicDoctors;
@@ -435,14 +451,26 @@ async function handleCancel(doctor, phone, userText) {
 }
 
 async function getPhoneFromMessage(msg) {
+  const from = msg.from || '';
+
+  const isValidPhone = (num) => num && num.length > 5 && num.length < 16;
+
+  // 1. @s.whatsapp.net formatı — gerçek numara
+  const waMatch = from.match(/^(\d+)@s\.whatsapp\.net$/);
+  if (waMatch && isValidPhone(waMatch[1])) {
+    log('getPhoneFromMessage: @s.whatsapp.net=' + waMatch[1]);
+    return waMatch[1];
+  }
+
+  // 2. Contact API ile dene (en güvenilir)
   try {
     if (typeof msg.getContact === 'function') {
       const contact = await msg.getContact();
       if (contact) {
-        const num = String(contact.number || '').replace(/[^0-9]/g, '');
-        if (num && num.length > 5 && num.length < 16) {
-          log('getPhoneFromMessage: contact.number=' + num);
-          return num;
+        const fromContact = String(contact.id?.user || contact.number || '').replace(/[^0-9]/g, '');
+        if (isValidPhone(fromContact)) {
+          log('getPhoneFromMessage: contact=' + fromContact);
+          return fromContact;
         }
         const pushname = String(contact.pushname || contact.name || '').trim();
         if (pushname) { if (!this._state) this._state = {}; this._state.pushName = pushname; }
@@ -452,32 +480,42 @@ async function getPhoneFromMessage(msg) {
     log('getPhoneFromMessage getContact error: ' + e.message);
   }
 
+  // 3. _data'dan dene
   try {
     if (msg._data) {
       const data = msg._data;
-      if (data.phoneNumber) {
-        const num = String(data.phoneNumber).replace(/[^0-9]/g, '');
-        if (num && num.length > 5 && num.length < 16) { log('getPhoneFromMessage: _data.phoneNumber=' + num); return num; }
-      }
-      if (data.whatsappNumber) {
-        const num = String(data.whatsappNumber).replace(/[^0-9]/g, '');
-        if (num && num.length > 5 && num.length < 16) { log('getPhoneFromMessage: _data.whatsappNumber=' + num); return num; }
-      }
-      if (data.participant) {
-        const num = String(data.participant).replace(/[^0-9]/g, '');
-        if (num && num.length > 5 && num.length < 16) { log('getPhoneFromMessage: _data.participant=' + num); return num; }
+      for (const key of ['phoneNumber', 'whatsappNumber', 'participant']) {
+        if (data[key]) {
+          const num = String(data[key]).replace(/[^0-9]/g, '');
+          if (isValidPhone(num)) { log('getPhoneFromMessage: _data.' + key + '=' + num); return num; }
+        }
       }
     }
   } catch (e) {}
 
+  // 4. msg.author dene
   try {
     if (msg.author) {
       const num = msg.author.replace(/[^0-9]/g, '');
-      if (num && num.length > 5 && num.length < 16) { log('getPhoneFromMessage: author=' + num); return num; }
+      if (isValidPhone(num)) { log('getPhoneFromMessage: author=' + num); return num; }
     }
   } catch (e) {}
 
-  const rawJid = msg.from || '';
+  // 5. @lid — geçici ID, getContact ile tekrar dene (farklı yaklaşım)
+  if (from.includes('@lid')) {
+    try {
+      if (typeof msg.getContact === 'function') {
+        const contact = await msg.getContact();
+        if (contact) {
+          const num = String(contact.id?.user || contact.number || '').replace(/[^0-9]/g, '');
+          if (isValidPhone(num)) { log('getPhoneFromMessage: lid contact=' + num); return num; }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 6. Son çare: jid'den sayıları çıkar
+  const rawJid = from;
   log('getPhoneFromMessage: rawJid=' + rawJid);
   let jid = rawJid;
   if (jid.startsWith('jid_')) jid = jid.substring(4);
@@ -486,7 +524,6 @@ async function getPhoneFromMessage(msg) {
   const numericUser = userPart.replace(/[^0-9]/g, '');
   if (numericUser) {
     log('getPhoneFromMessage: from jid part=' + numericUser);
-    if (numericUser.length > 5 && numericUser.length < 16) return numericUser;
     return numericUser;
   }
   const numeric = jid.replace(/[^0-9]/g, '');
@@ -531,15 +568,18 @@ export async function handleMessage(msg, doctor) {
       log('Intent: ' + intent + ' mesaj=' + text);
 
       if (intent === INTENT.GREETING) {
-        const name = doctor?.profile?.full_name || '';
-        const sector = state.sector || await getClinicSector(doctor);
-        state.sector = sector;
+        const clinicName = doctor?.clinic_name || (await (async () => {
+          if (!doctor.clinic_id) return doctor?.profile?.full_name || 'İşletme';
+          const { data } = await supabase.from('clinics').select('name').eq('id', doctor.clinic_id).maybeSingle();
+          return data?.name || doctor?.profile?.full_name || 'İşletme';
+        })());
+        state.sector = state.sector || await getClinicSector(doctor);
         const clinicDoctors = await getClinicDoctors(doctor);
         if (clinicDoctors.length > 1) {
           const docList = clinicDoctors.map((d, i) => `${i+1}. ${d.profile?.full_name || d.name || 'Doktor'}`).join('\n');
-          reply = `Merhaba! ${name}'e hoş geldiniz. Size nasıl yardımcı olabilirim?\nHangi doktorumuz için randevu almak istersiniz?\n${docList}`;
+          reply = `Merhaba! ${clinicName}'e hoş geldiniz. Size nasıl yardımcı olabilirim?\nHangi doktorumuz için randevu almak istersiniz?\n${docList}`;
         } else {
-          reply = `Merhaba! ${name}'e hoş geldiniz. Size nasıl yardımcı olabilirim?\n\nRandevu almak için 'randevu' yazın.`;
+          reply = `Merhaba! ${clinicName}'e hoş geldiniz. Size nasıl yardımcı olabilirim?\n\nRandevu almak için 'randevu' yazın.`;
         }
       } else if (intent === INTENT.CANCEL) {
         reply = await handleCancel(doctor, phone, text);
