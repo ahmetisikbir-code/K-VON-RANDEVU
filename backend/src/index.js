@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
 import appointmentRoutes from './routes/appointments.js';
 import doctorRoutes from './routes/doctors.js';
+import clinicRoutes from './routes/clinics.js';
 import availabilityRoutes from './routes/availability.js';
 import webhookRoutes from './routes/webhook.js';
 
@@ -32,6 +33,7 @@ app.use(limiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/doctors', doctorRoutes);
+app.use('/api/clinics', clinicRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/whatsapp', webhookRoutes);
 

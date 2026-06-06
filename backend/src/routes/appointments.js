@@ -9,14 +9,45 @@ router.use(auth);
 
 router.get('/', async (req, res) => {
   try {
+    const { clinic_id } = req.query;
     const userRole = req.user.profile?.role;
-    let query = supabase.from('appointments').select('*, doctor:doctors(*), patient:profiles(*)');
+
+    let userDoctorId = null;
+    if (userRole === 'doctor') {
+      const { data: doctorRecord } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('profile_id', req.user.id)
+        .maybeSingle();
+      if (doctorRecord) {
+        userDoctorId = doctorRecord.id;
+      }
+    }
+
+    let query = supabase.from('appointments').select('*, doctor:doctors(*, profile:profiles(*), clinic:clinics(*)), patient:profiles(*)');
 
     if (userRole !== 'admin') {
       if (userRole === 'doctor') {
-        query = query.eq('doctor_id', req.user.id);
+        if (userDoctorId) {
+          query = query.eq('doctor_id', userDoctorId);
+        } else {
+          return res.json({ success: true, data: [] });
+        }
       } else {
         query = query.eq('patient_id', req.user.id);
+      }
+    }
+
+    if (clinic_id) {
+      const { data: clinicDoctors } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('clinic_id', clinic_id);
+
+      if (clinicDoctors && clinicDoctors.length > 0) {
+        query = query.in('doctor_id', clinicDoctors.map(d => d.id));
+      } else {
+        return res.json({ success: true, data: [] });
       }
     }
 
@@ -35,13 +66,42 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { doctor_id, appointment_date, appointment_time, notes, patient_name, patient_phone } = req.body;
+    const { doctor_id, clinic_id, appointment_date, appointment_time, notes, patient_name, patient_phone } = req.body;
 
     if (!appointment_date || !appointment_time) {
       return res.status(400).json({ success: false, error: 'Tarih ve saat gerekli' });
     }
 
-    const actualDoctorId = doctor_id || req.user.id;
+    let actualDoctorId = doctor_id;
+
+    if (!actualDoctorId && clinic_id) {
+      const { data: clinicDoctors } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('clinic_id', clinic_id)
+        .limit(1);
+
+      if (clinicDoctors && clinicDoctors.length > 0) {
+        actualDoctorId = clinicDoctors[0].id;
+      } else {
+        return res.status(400).json({ success: false, error: 'Klinikte müsait doktor bulunamadı' });
+      }
+    }
+
+    if (!actualDoctorId && req.user.profile?.role === 'doctor') {
+      const { data: doctorRecord } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('profile_id', req.user.id)
+        .maybeSingle();
+      if (doctorRecord) {
+        actualDoctorId = doctorRecord.id;
+      }
+    }
+
+    if (!actualDoctorId) {
+      actualDoctorId = req.user.id;
+    }
 
     let resolvedPatientId = null;
     let resolvedPatientName = null;
@@ -178,7 +238,19 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Randevu bulunamadı' });
     }
 
-    if (existing.patient_id !== req.user.id && existing.doctor_id !== req.user.id && userRole !== 'admin') {
+    let isDoctorForAppointment = false;
+    if (userRole === 'doctor') {
+      const { data: doctorRecord } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('profile_id', req.user.id)
+        .maybeSingle();
+      if (doctorRecord) {
+        isDoctorForAppointment = existing.doctor_id === doctorRecord.id;
+      }
+    }
+
+    if (existing.patient_id !== req.user.id && !isDoctorForAppointment && userRole !== 'admin') {
       return res.status(403).json({ success: false, error: 'Bu randevuyu güncelleme yetkiniz yok' });
     }
 
@@ -234,7 +306,19 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Randevu bulunamadı' });
     }
 
-    if (existing.patient_id !== req.user.id && existing.doctor_id !== req.user.id && userRole !== 'admin') {
+    let isDoctorForAppointment = false;
+    if (userRole === 'doctor') {
+      const { data: doctorRecord } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('profile_id', req.user.id)
+        .maybeSingle();
+      if (doctorRecord) {
+        isDoctorForAppointment = existing.doctor_id === doctorRecord.id;
+      }
+    }
+
+    if (existing.patient_id !== req.user.id && !isDoctorForAppointment && userRole !== 'admin') {
       return res.status(403).json({ success: false, error: 'Bu randevuyu iptal etme yetkiniz yok' });
     }
 

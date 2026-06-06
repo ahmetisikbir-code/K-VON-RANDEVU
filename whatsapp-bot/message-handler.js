@@ -165,6 +165,16 @@ function formatDate(iso) {
   return `${d}.${m}.${y}`;
 }
 
+async function getClinicDoctors(doctor) {
+  if (!doctor.clinic_id) return [doctor];
+  const { data } = await supabase
+    .from('doctors')
+    .select('*, profile:profiles(full_name, phone)')
+    .eq('clinic_id', doctor.clinic_id)
+    .order('created_at');
+  return data || [doctor];
+}
+
 async function getAvailableSlots(doctorId, date) {
   const { data: slots } = await supabase
     .from('availability')
@@ -215,6 +225,39 @@ async function findOrCreatePatient(phone, name) {
 
 async function handleBookingFlow(doctor, phone, state, userText) {
   const step = state?.step || 'idle';
+  const effectiveDoctorId = state.selectedDoctorId || doctor.id;
+
+  if (step === 'awaiting_doctor') {
+    const clinicDoctors = state.clinicDoctors || await getClinicDoctors(doctor);
+    if (!state.clinicDoctors) state.clinicDoctors = clinicDoctors;
+    const choice = parseInt(userText.match(/\d+/)?.[0] || '');
+    const selected = clinicDoctors[choice - 1];
+    if (!selected) {
+      const list = clinicDoctors.map((d, i) => {
+        const name = d.profile?.full_name || d.name || 'Doktor';
+        const spec = d.specialty ? ` (${d.specialty})` : '';
+        return `${i+1}. ${name}${spec}`;
+      }).join('\n');
+      return { reply: `Lütfen listeden bir doktor seçin:\n${list}`, state, bookingConfirmed: false };
+    }
+    state.selectedDoctorId = selected.id;
+    state.step = 'awaiting_details';
+    return { reply: 'Hangi gün için randevu almak istersiniz? (Örn: yarın, pazartesi, 15.06.2026)', state, bookingConfirmed: false };
+  }
+
+  if (step === 'idle') {
+    const clinicDoctors = await getClinicDoctors(doctor);
+    if (clinicDoctors.length > 1) {
+      state.clinicDoctors = clinicDoctors;
+      state.step = 'awaiting_doctor';
+      const list = clinicDoctors.map((d, i) => {
+        const name = d.profile?.full_name || d.name || 'Doktor';
+        const spec = d.specialty ? ` (${d.specialty})` : '';
+        return `${i+1}. ${name}${spec}`;
+      }).join('\n');
+      return { reply: `Hangi doktor için randevu almak istersiniz?\n${list}\n\nLütfen numara ile seçin (1-${clinicDoctors.length}):`, state, bookingConfirmed: false };
+    }
+  }
 
   if (step === 'idle' || step === 'awaiting_details') {
     let date = extractDateFromText(userText);
@@ -224,7 +267,7 @@ async function handleBookingFlow(doctor, phone, state, userText) {
       const { data: existing } = await supabase
         .from('appointments')
         .select('id')
-        .eq('doctor_id', doctor.id)
+        .eq('doctor_id', effectiveDoctorId)
         .eq('date', date)
         .eq('time', time)
         .neq('status', 'cancelled')
@@ -240,7 +283,7 @@ async function handleBookingFlow(doctor, phone, state, userText) {
     }
 
     if (date && !time) {
-      const slots = await getAvailableSlots(doctor.id, date);
+      const slots = await getAvailableSlots(effectiveDoctorId, date);
       if (!slots.length) {
         state.step = 'awaiting_details';
         return { reply: `${formatDate(date)} için boş saat bulunamadı. Başka bir gün düşünür müsünüz?`, state, bookingConfirmed: false };
@@ -263,7 +306,7 @@ async function handleBookingFlow(doctor, phone, state, userText) {
   }
 
   if (step === 'awaiting_time') {
-    const freshSlots = await getAvailableSlots(doctor.id, state.bookingDate);
+    const freshSlots = await getAvailableSlots(effectiveDoctorId, state.bookingDate);
     if (!freshSlots.length) {
       state.step = 'idle';
       return { reply: `${formatDate(state.bookingDate)} için uygun saat kalmadı. Lütfen başka bir gün deneyin.`, state, bookingConfirmed: false };
@@ -300,7 +343,7 @@ async function handleBookingFlow(doctor, phone, state, userText) {
       const { data: existing } = await supabase
         .from('appointments')
         .select('id')
-        .eq('doctor_id', doctor.id)
+        .eq('doctor_id', effectiveDoctorId)
         .eq('date', state.bookingDate)
         .eq('time', state.bookingTime)
         .neq('status', 'cancelled')
@@ -318,7 +361,7 @@ async function handleBookingFlow(doctor, phone, state, userText) {
         const { data: directSlot } = await supabase
           .from('availability')
           .select('id')
-          .eq('doctor_id', doctor.id)
+          .eq('doctor_id', effectiveDoctorId)
           .eq('date', state.bookingDate)
           .eq('start_time', state.bookingTime)
           .eq('is_booked', false)
@@ -335,7 +378,7 @@ async function handleBookingFlow(doctor, phone, state, userText) {
       }
 
       const { error } = await supabase.from('appointments').insert({
-        doctor_id: doctor.id,
+        doctor_id: effectiveDoctorId,
         slot_id: slotId || null,
         date: state.bookingDate,
         time: state.bookingTime,
@@ -478,7 +521,13 @@ export async function handleMessage(msg, doctor) {
       if (intent === INTENT.GREETING) {
         const name = doctor?.profile?.full_name || '';
         const spec = doctor?.specialty || '';
-        reply = `Merhaba! Ben ${name} - ${spec} dijital asistanıyım. Size nasıl yardımcı olabilirim?\n\nRandevu alabilir, bilgi alabilir veya mevcut randevunuzu sorgulayabilirsiniz.`;
+        const clinicDoctors = await getClinicDoctors(doctor);
+        if (clinicDoctors.length > 1) {
+          const docList = clinicDoctors.map((d, i) => `${i+1}. ${d.profile?.full_name || d.name || 'Doktor'}`).join('\n');
+          reply = `Merhaba! Ben ${name} dijital asistanıyım. Size nasıl yardımcı olabilirim?\nRandevu almak için hangi doktorumuzu tercih edersiniz?\n${docList}`;
+        } else {
+          reply = `Merhaba! Ben ${name} - ${spec} dijital asistanıyım. Size nasıl yardımcı olabilirim?\n\nRandevu alabilir, bilgi alabilir veya mevcut randevunuzu sorgulayabilirsiniz.`;
+        }
       } else if (intent === INTENT.CANCEL) {
         reply = await handleCancel(doctor, phone, text);
       } else if (intent === INTENT.BOOK) {
