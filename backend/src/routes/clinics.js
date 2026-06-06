@@ -4,9 +4,68 @@ import auth from '../middleware/auth.js';
 
 const router = Router();
 
-router.use(auth);
+router.get('/', async (req, res) => {
+  try {
+    const { sector, search } = req.query;
 
-router.get('/my', async (req, res) => {
+    let query = supabase
+      .from('clinics')
+      .select('*, owner:profiles(*)');
+
+    if (sector) {
+      query = query.eq('sector', sector);
+    }
+
+    if (search) {
+      query = query.ilike('name', `%${search}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('List clinics error:', err);
+    return res.status(500).json({ success: false, error: 'Klinikler alınamadı' });
+  }
+});
+
+router.post('/', auth, async (req, res) => {
+  try {
+    const { name, address, phone, whatsapp_number, sector } = req.body;
+
+    if (!name || !sector) {
+      return res.status(400).json({ success: false, error: 'Klinik adı ve sektör gerekli' });
+    }
+
+    const { data, error } = await supabase
+      .from('clinics')
+      .insert([{
+        name,
+        address,
+        phone,
+        whatsapp_number,
+        sector,
+        owner_id: req.user.id,
+      }])
+      .select('*, owner:profiles(*)')
+      .single();
+
+    if (error) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+
+    return res.status(201).json({ success: true, data });
+  } catch (err) {
+    console.error('Create clinic error:', err);
+    return res.status(500).json({ success: false, error: 'Klinik oluşturulamadı' });
+  }
+});
+
+router.get('/my', auth, async (req, res) => {
   try {
     let clinic = null;
 
@@ -49,7 +108,7 @@ router.get('/my', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -67,12 +126,13 @@ router.put('/:id', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Bu işlem için yetkiniz yok' });
     }
 
-    const { name, address, phone, whatsapp_number } = req.body;
+    const { name, address, phone, whatsapp_number, sector } = req.body;
     const updates = {};
     if (name !== undefined) updates.name = name;
     if (address !== undefined) updates.address = address;
     if (phone !== undefined) updates.phone = phone;
     if (whatsapp_number !== undefined) updates.whatsapp_number = whatsapp_number;
+    if (sector !== undefined) updates.sector = sector;
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
@@ -93,7 +153,28 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.get('/:id/doctors', async (req, res) => {
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data, error } = await supabase
+      .from('clinics')
+      .select('*, owner:profiles(*)')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      return res.status(404).json({ success: false, error: 'Klinik bulunamadı' });
+    }
+
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('Get clinic error:', err);
+    return res.status(500).json({ success: false, error: 'Klinik bilgisi alınamadı' });
+  }
+});
+
+router.get('/:id/doctors', auth, async (req, res) => {
   try {
     const { id } = req.params;
 

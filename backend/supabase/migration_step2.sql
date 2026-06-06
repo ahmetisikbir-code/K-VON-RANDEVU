@@ -1,0 +1,1 @@
+ALTER TABLE public.doctors ADD COLUMN IF NOT EXISTS clinic_id UUID REFERENCES public.clinics(id) ON DELETE SET NULL;

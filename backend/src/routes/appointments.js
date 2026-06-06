@@ -9,7 +9,7 @@ router.use(auth);
 
 router.get('/', async (req, res) => {
   try {
-    const { clinic_id } = req.query;
+    const { clinic_id, sector } = req.query;
     const userRole = req.user.profile?.role;
 
     let userDoctorId = null;
@@ -35,6 +35,28 @@ router.get('/', async (req, res) => {
         }
       } else {
         query = query.eq('patient_id', req.user.id);
+      }
+    }
+
+    if (sector) {
+      const { data: sectorClinics } = await supabase
+        .from('clinics')
+        .select('id')
+        .eq('sector', sector);
+
+      if (sectorClinics && sectorClinics.length > 0) {
+        const { data: sectorDoctors } = await supabase
+          .from('doctors')
+          .select('id')
+          .in('clinic_id', sectorClinics.map(c => c.id));
+
+        if (sectorDoctors && sectorDoctors.length > 0) {
+          query = query.in('doctor_id', sectorDoctors.map(d => d.id));
+        } else {
+          return res.json({ success: true, data: [] });
+        }
+      } else {
+        return res.json({ success: true, data: [] });
       }
     }
 

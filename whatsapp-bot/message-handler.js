@@ -111,10 +111,10 @@ function extractTimeFromText(text) {
   return parseTimeFromText(text);
 }
 
-function buildSystemPrompt(doctor) {
+function buildSystemPrompt(doctor, sector) {
   const businessName = doctor?.profile?.full_name || 'İşletme';
-  const sector = doctor?.sector || doctor?.specialty || 'genel';
-  let info = `İşletme: ${businessName}\nSektör: ${sector}`;
+  const effectiveSector = sector || doctor?.sector || doctor?.specialty || 'genel';
+  let info = `İşletme: ${businessName}\nSektör: ${effectiveSector}`;
   if (doctor?.working_hours) info += `\nÇalışma saatleri: ${doctor.working_hours}`;
   if (doctor?.address) info += `\nAdres: ${doctor.address}`;
   if (doctor?.services) info += `\nHizmetler: ${doctor.services}`;
@@ -137,10 +137,10 @@ Kurallar:
 - İşletme hakkında bilinmeyen bir şey sorulursa: "Bu konuda size yardımcı olamıyorum. Randevu veya hizmetlerimiz hakkında bilgi almak ister misiniz?" de`;
 }
 
-async function callGroqForReply(messages, doctor) {
+async function callGroqForReply(messages, doctor, sector) {
   if (!GROQ_API_KEY) return 'Sistem yapılandırılmamış.';
   try {
-    const systemMsg = { role: 'system', content: buildSystemPrompt(doctor) };
+    const systemMsg = { role: 'system', content: buildSystemPrompt(doctor, sector) };
     const res = await fetch(GROQ_URL, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -171,8 +171,20 @@ async function getClinicDoctors(doctor) {
     .from('doctors')
     .select('*, profile:profiles(full_name, phone)')
     .eq('clinic_id', doctor.clinic_id)
+    .not('whatsapp_number', 'is', null)
     .order('created_at');
   return data || [doctor];
+}
+
+async function getClinicSector(doctor) {
+  if (doctor?.sector) return doctor.sector;
+  if (!doctor.clinic_id) return null;
+  const { data } = await supabase
+    .from('clinics')
+    .select('sector')
+    .eq('id', doctor.clinic_id)
+    .maybeSingle();
+  return data?.sector || null;
 }
 
 async function getAvailableSlots(doctorId, date) {
@@ -520,13 +532,14 @@ export async function handleMessage(msg, doctor) {
 
       if (intent === INTENT.GREETING) {
         const name = doctor?.profile?.full_name || '';
-        const spec = doctor?.specialty || '';
+        const sector = state.sector || await getClinicSector(doctor);
+        state.sector = sector;
         const clinicDoctors = await getClinicDoctors(doctor);
         if (clinicDoctors.length > 1) {
           const docList = clinicDoctors.map((d, i) => `${i+1}. ${d.profile?.full_name || d.name || 'Doktor'}`).join('\n');
-          reply = `Merhaba! Ben ${name} dijital asistanıyım. Size nasıl yardımcı olabilirim?\nRandevu almak için hangi doktorumuzu tercih edersiniz?\n${docList}`;
+          reply = `Merhaba! ${name}'e hoş geldiniz. Size nasıl yardımcı olabilirim?\nHangi doktorumuz için randevu almak istersiniz?\n${docList}`;
         } else {
-          reply = `Merhaba! Ben ${name} - ${spec} dijital asistanıyım. Size nasıl yardımcı olabilirim?\n\nRandevu alabilir, bilgi alabilir veya mevcut randevunuzu sorgulayabilirsiniz.`;
+          reply = `Merhaba! ${name}'e hoş geldiniz. Size nasıl yardımcı olabilirim?\n\nRandevu almak için 'randevu' yazın.`;
         }
       } else if (intent === INTENT.CANCEL) {
         reply = await handleCancel(doctor, phone, text);
@@ -537,7 +550,8 @@ export async function handleMessage(msg, doctor) {
       } else {
         log('AI yaniti: ' + text);
         const contextMessages = messages.slice(-10);
-        reply = await callGroqForReply([...contextMessages, { role: 'user', content: text }], doctor);
+        const sector = state.sector;
+        reply = await callGroqForReply([...contextMessages, { role: 'user', content: text }], doctor, sector);
       }
     }
 

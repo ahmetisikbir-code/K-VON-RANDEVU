@@ -6,7 +6,7 @@ const router = Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { specialty, search, clinic_id } = req.query;
+    const { specialty, search, clinic_id, sector } = req.query;
 
     let query = supabase
       .from('doctors')
@@ -22,6 +22,19 @@ router.get('/', async (req, res) => {
 
     if (clinic_id) {
       query = query.eq('clinic_id', clinic_id);
+    }
+
+    if (sector) {
+      const { data: sectorClinics } = await supabase
+        .from('clinics')
+        .select('id')
+        .eq('sector', sector);
+
+      if (sectorClinics && sectorClinics.length > 0) {
+        query = query.in('clinic_id', sectorClinics.map(c => c.id));
+      } else {
+        return res.json({ success: true, data: [] });
+      }
     }
 
     const { data, error } = await query;
@@ -60,15 +73,15 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', auth, async (req, res) => {
   try {
-    const { clinic_id, full_name, specialty, working_hours, services, holidays, address, phone, avatar_url, whatsapp_number, break_start, break_end, gender } = req.body;
+    const { clinic_id, full_name, email, password, specialty, working_hours, services, holidays, address, phone, avatar_url, whatsapp_number, break_start, break_end, gender } = req.body;
 
-    if (!clinic_id || !full_name) {
-      return res.status(400).json({ success: false, error: 'Klinik ve doktor adı gerekli' });
+    if (!clinic_id || !full_name || !email) {
+      return res.status(400).json({ success: false, error: 'Klinik, doktor adı ve email gerekli' });
     }
 
     const { data: clinic, error: clinicError } = await supabase
       .from('clinics')
-      .select('owner_id')
+      .select('owner_id, sector')
       .eq('id', clinic_id)
       .single();
 
@@ -80,19 +93,23 @@ router.post('/', auth, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Bu klinikte doktor ekleme yetkiniz yok' });
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .insert([{ full_name, role: 'doctor' }])
-      .select()
-      .single();
+    const tempPassword = password || (Math.random().toString(36).slice(-8) + 'Aa1!');
 
-    if (profileError) {
-      return res.status(400).json({ success: false, error: profileError.message });
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: { full_name, role: 'doctor' },
+    });
+
+    if (authError) {
+      return res.status(400).json({ success: false, error: authError.message });
     }
 
     const doctorData = {
-      profile_id: profile.id,
+      profile_id: authUser.user.id,
       clinic_id,
+      sector: clinic.sector,
     };
     if (specialty !== undefined) doctorData.specialty = specialty;
     if (working_hours !== undefined) doctorData.working_hours = working_hours;
@@ -153,7 +170,7 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Bu işlem için yetkiniz yok' });
     }
 
-    const { specialty, working_hours, services, holidays, address, phone, avatar_url, whatsapp_number, break_start, break_end, gender, bio, consultation_fee, license_number, is_active } = req.body;
+    const { specialty, working_hours, services, holidays, address, phone, avatar_url, whatsapp_number, break_start, break_end, gender, bio, consultation_fee, license_number, is_active, sector } = req.body;
     const updates = {};
     if (specialty !== undefined) updates.specialty = specialty;
     if (working_hours !== undefined) updates.working_hours = working_hours;
@@ -170,6 +187,7 @@ router.put('/:id', auth, async (req, res) => {
     if (consultation_fee !== undefined) updates.consultation_fee = consultation_fee;
     if (license_number !== undefined) updates.license_number = license_number;
     if (is_active !== undefined) updates.is_active = is_active;
+    if (sector !== undefined) updates.sector = sector;
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
